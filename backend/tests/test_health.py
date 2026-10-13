@@ -1,8 +1,12 @@
 def test_root_endpoint_serves_dashboard(test_client):
     response = test_client.get("/")
     assert response.status_code == 200
-    assert "AIOPS COMMAND CENTER" in response.text
     assert "<!DOCTYPE html>" in response.text
+    # The dashboard was rebranded from "AIOPS COMMAND CENTER" to Sentinelas
+    # (see d4d6a87), so assert on the header brand and the primary action
+    # button rather than a hardcoded legacy title.
+    assert ">Sentinelas<" in response.text
+    assert 'id="btnInjectChaos"' in response.text
 
 def test_api_meta_endpoint(test_client):
     response = test_client.get("/api")
