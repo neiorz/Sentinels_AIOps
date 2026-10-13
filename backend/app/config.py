@@ -32,12 +32,17 @@ class Settings(BaseSettings):
     SLA_CLIENT_C_SECONDS: int = 1800  # 30 minutes
 
     # n8n outbound webhook — published/active workflow endpoint.
-    # Port 4555 = host port mapped to the n8n_main container.
-    # Path must match the webhook node's "path" (Sentinelas Webhook node).
-    # Override via N8N_WEBHOOK_URL env var or .env to change target.
+    #
+    # Default is the shared n8n CLOUD instance so that a teammate who just
+    # cloned the repo gets working alerts without running n8n locally.
+    # Cloud workflow: https://nourzz.app.n8n.cloud/workflow/d1QiZbMLmR7fOJDA
+    # (the workflow's webhook path is "sentinelas-anomaly").
+    #
+    # To point at a local n8n instead, set N8N_WEBHOOK_URL in backend/.env:
+    #   http://localhost:4555/webhook/sentinelas-anomaly
     N8N_WEBHOOK_URL: str = os.getenv(
         "N8N_WEBHOOK_URL",
-        "http://localhost:4555/webhook/sentinelas-anomaly",
+        "https://nourzz.app.n8n.cloud/webhook/sentinelas-anomaly",
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

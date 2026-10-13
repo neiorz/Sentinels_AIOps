@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "type": "http",
+      "url": "https://nourzz.app.n8n.cloud/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTU5YWUwMi04OTk3LTQwMmQtYjcwOS1kZWVkYzdlN2EwN2MiLCJpc3MiOiJuOG4iLCJqdGkiOiI2NTBiMzc1NS1kYjUxLTQyNDYtOGNiNC0zNGU4ODk4OWNlMzQiLCJpYXQiOjE3OTE4ODUzMjksImF1ZCI6Im1jcC1zZXJ2ZXItYXBpIn0.QMIduNNk0LgZJB7QnPJW2pNmIRNNRnoczHEhXkSa-Pk"
+      }
+    }
+  }
+}
