@@ -36,25 +36,40 @@ Sentinelas Backend
         ▼
   n8n Webhook Trigger  (sentinelas-anomaly)   ←  n8n CLOUD
         │
-        ├─ confidence ≥ 0.6 ──► Format Message  (HTML + plain text bodies)
-        │                             │
-        │                             ▼
-        │                       Telegram Alert  (parse_mode: HTML)
-        │                             │
-        │                             ▼
-        │                       Email Alert     (SMTP)
-        │                             │
-        │                             └─► Respond 200 OK
+        ▼
+  Format Alert Message  (Code: validate payload, severity bands, render bodies)
         │
-        └─ confidence < 0.6 ──► Respond 200 Skipped
+        ▼
+  Confidence ≥ 0.6 ?
+        │
+        ├─ false ──► Respond 200 Suppressed
+        │
+        └─ true ───► Telegram Alert  (parse_mode: HTML, retry ×3)
+                          │
+                          ▼
+                     Gmail Alert     (OAuth2, HTML card)
+                          │
+                          ▼
+                     Respond 200 OK  (per-channel delivery status)
 ```
 
-**Why serial?** `Telegram Alert → Email Alert → Respond 200 OK` is a single
+**Why serial?** `Telegram Alert → Gmail Alert → Respond 200 OK` is a single
 chain. Fanning *both* senders into the same `Respond 200 OK` node makes n8n fire
 the response twice (`"Response already sent"` error).
 
 **Why 0.6 and not 0.7?** The LightGBM model emits ≈0.67 for clear anomalies, so
 a 0.7 gate suppressed genuine detections.
+
+### What the v2 workflow adds
+
+| Change | Why |
+|--------|-----|
+| **Gmail node replaces SMTP** | OAuth2 — no App Password, which Google kept rejecting |
+| **Payload validation** | Malformed bodies are reported in `payload_issues` instead of silently alerting as "unknown" |
+| **Severity bands** | ≥0.90 `CRITICAL`, ≥0.75 `HIGH`, else `MEDIUM` — drives the alert colour and the email subject prefix |
+| **HTML email card** | Branded card with an accent colour per severity, instead of plain text |
+| **Telegram retry ×3** | Transient network blips no longer drop an alert |
+| **Honest delivery status** | `telegram_sent`/`gmail_sent` read `message_id`/`id`. The old expressions read fields that never existed, so they reported `null` even on success |
 
 ---
 
@@ -63,27 +78,46 @@ a 0.7 gate suppressed genuine detections.
 | Item | Value |
 |------|-------|
 | Instance | https://nourzz.app.n8n.cloud |
-| Workflow | [Sentinelas — Anomaly Alert Router](https://nourzz.app.n8n.cloud/workflow/d1QiZbMLmR7fOJDA) |
-| Workflow id | `d1QiZbMLmR7fOJDA` |
+| Workflow | [Sentinelas — Anomaly Alert Router](https://nourzz.app.n8n.cloud/workflow/A4UveMU6K68RzPFe) |
+| Workflow id | `A4UveMU6K68RzPFe` |
 | Webhook URL | `https://nourzz.app.n8n.cloud/webhook/sentinelas-anomaly` |
 | MCP endpoint | `https://nourzz.app.n8n.cloud/mcp-server/http` |
 
 > Cloud webhook paths only answer once the workflow is **published**. An
 > unpublished workflow returns `404` on `/webhook/…`.
 
-### Publishing checklist
+### Credentials
 
-Publishing is blocked until both nodes have credentials attached:
+MCP can read and edit workflows but deliberately **cannot create credentials** —
+secrets never transit the MCP token.
+
+**Gmail — already done.** The instance has a `Gmail account` credential
+(`gmailOAuth2`), and n8n auto-assigned it to the **Gmail Alert** node on
+creation. Nothing to configure; it sends *from* that Google account via OAuth2,
+so there is no App Password and no "from" setting to misconfigure.
+
+**Telegram — blocks publishing** (the only remaining step):
 
 ```
 Node "Telegram Alert": Missing required credential: telegramApi
-Node "Email Alert":    Missing required credential: smtp
 ```
 
-Add them in the cloud UI (**Credentials → Add credential**), then attach each to
-its node and hit **Publish**. MCP can read and edit workflows but cannot create
-credentials, so this step is manual by design — secrets never transit the MCP
-token.
+**Credentials → Add credential → Telegram (Legacy)** → paste the BotFather
+access token → attach it to the **Telegram Alert** node → **Publish**.
+
+<details>
+<summary>If you ever need to recreate the Gmail OAuth2 credential</summary>
+
+1. https://console.cloud.google.com → create project `sentinelas`
+2. **APIs & Services → Library** → enable **Gmail API**
+3. **OAuth consent screen** → External → add your Google account as a **Test user**
+4. **Credentials → Create credentials → OAuth client ID → Web application**
+5. Authorised redirect URI: `http://localhost:5678/rest/oauth2-credential/callback`
+6. Copy the **Client ID** and **Client Secret**
+7. n8n **Credentials → Add credential → Gmail OAuth2 API** → paste both →
+   **Sign in with Google**
+
+</details>
 
 ---
 
