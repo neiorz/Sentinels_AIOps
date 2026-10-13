@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     #
     # Default is the shared n8n CLOUD instance so that a teammate who just
     # cloned the repo gets working alerts without running n8n locally.
-    # Cloud workflow: https://nourzz.app.n8n.cloud/workflow/A4UveMU6K68RzPFe
+    # Cloud workflow: https://nourzz.app.n8n.cloud/workflow/JAYllzvJ9FpsyrdB
     # (the workflow's webhook path is "sentinelas-anomaly").
     #
     # To point at a local n8n instead, set N8N_WEBHOOK_URL in backend/.env:

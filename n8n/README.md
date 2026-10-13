@@ -37,7 +37,7 @@ Sentinelas Backend
   n8n Webhook Trigger  (sentinelas-anomaly)   ←  n8n CLOUD
         │
         ▼
-  Format Alert Message  (Code: validate payload, severity bands, render bodies)
+  Format Alert Message  (Code: validate payload, severity bands, render 3 bodies)
         │
         ▼
   Confidence ≥ 0.6 ?
@@ -50,12 +50,19 @@ Sentinelas Backend
                      Gmail Alert     (OAuth2, HTML card)
                           │
                           ▼
+                     Slack Alert     (mrkdwn, retry ×3)
+                          │
+                          ▼
                      Respond 200 OK  (per-channel delivery status)
 ```
 
-**Why serial?** `Telegram Alert → Gmail Alert → Respond 200 OK` is a single
-chain. Fanning *both* senders into the same `Respond 200 OK` node makes n8n fire
-the response twice (`"Response already sent"` error).
+**Why serial?** `Telegram → Gmail → Slack → Respond 200 OK` is a single chain.
+Fanning the senders into the same `Respond 200 OK` node makes n8n fire the
+response once per branch (`"Response already sent"` error).
+
+Each sender sets `onError: continueRegularOutput`, so a channel that is missing
+a credential or blips on the network is reported as `"slack_sent": false` in the
+response instead of killing the alert — the other channels still deliver.
 
 **Why 0.6 and not 0.7?** The LightGBM model emits ≈0.67 for clear anomalies, so
 a 0.7 gate suppressed genuine detections.
@@ -65,11 +72,29 @@ a 0.7 gate suppressed genuine detections.
 | Change | Why |
 |--------|-----|
 | **Gmail node replaces SMTP** | OAuth2 — no App Password, which Google kept rejecting |
+| **Slack as a third sink** | Telegram, Gmail **and** Slack all fire from one alert |
 | **Payload validation** | Malformed bodies are reported in `payload_issues` instead of silently alerting as "unknown" |
-| **Severity bands** | ≥0.90 `CRITICAL`, ≥0.75 `HIGH`, else `MEDIUM` — drives the alert colour and the email subject prefix |
-| **HTML email card** | Branded card with an accent colour per severity, instead of plain text |
-| **Telegram retry ×3** | Transient network blips no longer drop an alert |
-| **Honest delivery status** | `telegram_sent`/`gmail_sent` read `message_id`/`id`. The old expressions read fields that never existed, so they reported `null` even on success |
+| **Severity bands** | ≥0.90 `CRITICAL`, ≥0.75 `HIGH`, else `MEDIUM` — drives the alert colour, the emoji and the email subject prefix |
+| **Per-channel message format** | Telegram gets HTML, Slack gets mrkdwn, email gets an HTML card. Each platform renders its own syntax — HTML pasted into Slack shows literal `<b>` tags |
+| **Retry ×3 on Telegram and Slack** | Transient network blips no longer drop an alert |
+| **Honest delivery status** | `telegram_sent`/`gmail_sent`/`slack_sent` read `message_id`/`id`/`ts`. The old expressions read fields that never existed, so they reported `null` even on success |
+
+### The three message formats
+
+One payload, three renderings, produced by the **Format Alert Message** node:
+
+```json
+{
+  "telegram_html": "...",   // parse_mode: HTML  — <b>bold</b>
+  "slack_text":    "...",   // mrkdwn            — *bold*, `code`, :red_circle:
+  "email_html":    "...",   // full HTML card with a per-severity accent colour
+  "email_subject": "..."
+}
+```
+
+The severity band picks the accent for all three — 🔴 `:red_circle:` `#b91c1c`
+for CRITICAL, 🟠 `:large_orange_circle:` `#c2410c` for HIGH, 🟡
+`:large_yellow_circle:` `#a16207` for MEDIUM.
 
 ---
 
@@ -78,8 +103,8 @@ a 0.7 gate suppressed genuine detections.
 | Item | Value |
 |------|-------|
 | Instance | https://nourzz.app.n8n.cloud |
-| Workflow | [Sentinelas — Anomaly Alert Router](https://nourzz.app.n8n.cloud/workflow/A4UveMU6K68RzPFe) |
-| Workflow id | `A4UveMU6K68RzPFe` |
+| Workflow | [Sentinelas — Anomaly Alert Router](https://nourzz.app.n8n.cloud/workflow/JAYllzvJ9FpsyrdB) |
+| Workflow id | `JAYllzvJ9FpsyrdB` |
 | Webhook URL | `https://nourzz.app.n8n.cloud/webhook/sentinelas-anomaly` |
 | MCP endpoint | `https://nourzz.app.n8n.cloud/mcp-server/http` |
 
@@ -89,21 +114,41 @@ a 0.7 gate suppressed genuine detections.
 ### Credentials
 
 MCP can read and edit workflows but deliberately **cannot create credentials** —
-secrets never transit the MCP token.
+secrets never transit the MCP token. Two of the three channels need one:
 
-**Gmail — already done.** The instance has a `Gmail account` credential
-(`gmailOAuth2`), and n8n auto-assigned it to the **Gmail Alert** node on
-creation. Nothing to configure; it sends *from* that Google account via OAuth2,
-so there is no App Password and no "from" setting to misconfigure.
-
-**Telegram — blocks publishing** (the only remaining step):
+**Telegram — blocks publishing:**
 
 ```
 Node "Telegram Alert": Missing required credential: telegramApi
 ```
 
 **Credentials → Add credential → Telegram (Legacy)** → paste the BotFather
-access token → attach it to the **Telegram Alert** node → **Publish**.
+access token → attach it to the **Telegram Alert** node.
+
+**Slack — blocks publishing:**
+
+```
+Node "Slack Alert": Missing required credential: slackApi
+```
+
+**Credentials → Add credential → Slack API** → paste a **Bot User OAuth Token**
+(`xoxb-…`) → attach it to the **Slack Alert** node. The bot posts to
+`#sentinelas-alerts`, so that channel has to exist and the bot has to be in it:
+
+1. https://api.slack.com/apps → **Create New App** → *From scratch*
+2. **OAuth & Permissions → Bot Token Scopes** → add `chat:write`,
+   `channels:read`
+3. Install the app to your workspace → copy the **Bot User OAuth Token**
+4. In Slack: `/invite @<your-bot>` in `#sentinelas-alerts`
+
+> To post somewhere else, change `channelId` on the Slack node — or the
+> `SLACK_CHANNEL` constant at the top of the **Format Alert Message** code, which
+> feeds it.
+
+Once both credentials are attached, **Publish**. Gmail needs nothing — the
+instance's `Gmail account` credential (`gmailOAuth2`) was auto-assigned to the
+**Gmail Alert** node on creation, and it sends *from* that Google account via
+OAuth2, so there is no App Password and no "from" setting to misconfigure.
 
 <details>
 <summary>If you ever need to recreate the Gmail OAuth2 credential</summary>
@@ -304,7 +349,7 @@ instance) is `n8n/sentinelas_n8n_workflow.cloud.json`.
 ## Extending the workflow
 
 - **PagerDuty** — HTTP Request node against PagerDuty Events API v2.
-- **Slack** — built-in Slack node posting to `#incidents`.
+- **Slack threads** — thread follow-up notes onto the alert message (`thread_ts`).
 - **Jira** — auto-create an incident ticket with the Jira Software node.
 - **Suppress low-severity** — an extra IF on `anomaly_type`.
 - **Tune the gate** — the `Confidence ≥ 0.6 ?` node.
