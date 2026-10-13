@@ -67,6 +67,23 @@ response instead of killing the alert — the other channels still deliver.
 **Why 0.6 and not 0.7?** The LightGBM model emits ≈0.67 for clear anomalies, so
 a 0.7 gate suppressed genuine detections.
 
+> ### ⚠️ The threshold is decided in the Code node, not by the IF node
+>
+> `Confidence ≥ 0.6 ?` does **not** compare numbers. It tests a precomputed
+> boolean: `{ type: 'boolean', operation: 'true' }` on `$json.above_threshold`,
+> which **Format Alert Message** sets with plain JavaScript.
+>
+> This is deliberate. The obvious version — `IF` with
+> `{ type: 'number', operation: 'largerEqual' }` and `rightValue: 0.6` — silently
+> evaluated `0.95 >= 0.6` as **false** in n8n 2.x, routing every alert to
+> *Suppressed* with no error anywhere. It was confirmed by feeding the IF node a
+> literal `=0.95` constant: still false. `string/equals` on the same node worked
+> fine, so only the numeric comparison path was broken.
+>
+> If you rewrite the gate, **verify it end to end with both a high and a low
+confidence score** — a misconfigured condition looks exactly like "the alert
+> didn't send".
+
 ### What the v2 workflow adds
 
 | Change | Why |
@@ -77,7 +94,7 @@ a 0.7 gate suppressed genuine detections.
 | **Severity bands** | ≥0.90 `CRITICAL`, ≥0.75 `HIGH`, else `MEDIUM` — drives the alert colour, the emoji and the email subject prefix |
 | **Per-channel message format** | Telegram gets HTML, Slack gets mrkdwn, email gets an HTML card. Each platform renders its own syntax — HTML pasted into Slack shows literal `<b>` tags |
 | **Retry ×3 on Telegram and Slack** | Transient network blips no longer drop an alert |
-| **Honest delivery status** | `telegram_sent`/`gmail_sent`/`slack_sent` read `message_id`/`id`/`ts`. The old expressions read fields that never existed, so they reported `null` even on success |
+| **Honest delivery status** | `telegram_sent`/`gmail_sent`/`slack_sent` read `result.message_id`/`id`/`ts`. Note Telegram nests its payload — `{ok, result: {message_id}}` — so reading `message_id` at the top level reports `false` even when the message was delivered |
 
 ### The three message formats
 
@@ -110,6 +127,12 @@ for CRITICAL, 🟠 `:large_orange_circle:` `#c2410c` for HIGH, 🟡
 
 > Cloud webhook paths only answer once the workflow is **published**. An
 > unpublished workflow returns `404` on `/webhook/…`.
+>
+> **Editing a published workflow does not change what the webhook runs.** An edit
+> goes to a draft (`versionId`); the live route keeps serving `activeVersionId`
+> until you **Publish** again. Symptom: you fix something in the UI, the code
+> looks right, and the webhook behaves exactly as before. Check
+> `activeVersionId` moves — it is the only proof the change went live.
 
 ### Credentials
 

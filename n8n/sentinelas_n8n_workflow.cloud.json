@@ -8,48 +8,56 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "node-webhook-trigger",
+      "id": "7ebaaaa9-418e-4622-b034-359056073472",
       "name": "Sentinelas Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        200,
-        300
+        0,
+        96
       ],
       "webhookId": "sentinelas-anomaly"
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json.body ?? $input.first().json ?? {};\nconst issues = [];\nconst get = (k, d) => (raw[k] === undefined || raw[k] === null ? d : raw[k]);\n\nconst service = String(get('service_name', 'unknown'));\nconst fault   = String(get('anomaly_type', 'unknown'));\nconst status  = String(get('status', 'ANOMALY_DETECTED'));\nlet   score   = Number(get('confidence_score', 0));\nconst tsRaw   = Number(get('timestamp', Date.now() / 1000));\nconst tsNum   = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;\n\nif (!raw.service_name) issues.push('service_name missing');\nif (!Number.isFinite(score)) { issues.push('confidence_score is not a number'); score = 0; }\nif (score < 0 || score > 1) issues.push('confidence_score outside [0,1], clamped');\nscore = Math.min(Math.max(score, 0), 1);\nif (!Number.isFinite(tsRaw)) issues.push('timestamp is not a unix epoch number - defaulted to now');\n\nconst ts  = new Date(tsNum * 1000).toISOString();\nconst pct = (score * 100).toFixed(1);\nconst esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst severity = score >= 0.90 ? 'CRITICAL' : score >= 0.75 ? 'HIGH' : 'MEDIUM';\nconst emoji    = severity === 'CRITICAL' ? '\\u{1F534}' : severity === 'HIGH' ? '\\u{1F7E0}' : '\\u{1F7E1}';\nconst accent   = severity === 'CRITICAL' ? '#b91c1c'  : severity === 'HIGH'  ? '#c2410c'  : '#a16207';\n\nconst rcService = get('root_cause_service', null);\nconst rcFault   = get('root_cause_fault_type', null);\nconst rcText    = rcService ? `${rcService} — ${rcFault ?? 'unspecified'}` : 'Investigating…';\nconst anomalyScore = get('anomaly_score', null);\n\nconst EMAIL_TO = 'nourhanelshieikh71@gmail.com';\nconst SLACK_CHANNEL = '#sentinelas-alerts';\n\nconst telegram_html = [\n  `${emoji} <b>Sentinelas \\u00b7 ${severity}</b>`,\n  '',\n  `<b>Service:</b> ${esc(service)}`,\n  `<b>Type:</b> ${esc(fault)}`,\n  `<b>Confidence:</b> ${pct}%`,\n  `<b>Status:</b> ${esc(status)}`,\n  `<b>Time:</b> ${esc(ts)}`,\n  `<b>Root Cause:</b> ${esc(rcText)}`,\n].join('\\n');\n\nconst email_subject = `[Sentinelas ${severity}] ${fault} in ${service} (${pct}%)`;\n\nconst rows = [\n  ['Service', service], ['Anomaly type', fault], ['Confidence', pct + '%'],\n  ['Status', status], ['Root cause', rcText], ['Detected at', ts],\n  ['Anomaly score', anomalyScore ?? 'n/a'],\n];\nconst email_html = '<!DOCTYPE html><html><body style=\"margin:0;padding:24px;background:#f6f7f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif\">'\n  + '<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb\">'\n  + `<div style=\"background:${accent};padding:16px 20px;color:#fff\">`\n  + `<div style=\"font-size:18px;font-weight:700\">${emoji} Sentinelas Anomaly Alert</div>`\n  + `<div style=\"font-size:13px;opacity:.9\">${esc(severity)} \\u00b7 ${pct}% confidence</div></div>`\n  + '<div style=\"padding:20px\"><table style=\"width:100%;border-collapse:collapse;font-size:14px;color:#111827\">'\n  + rows.map(([k, v]) => `<tr><td style=\"padding:7px 0;color:#6b7280;width:140px;vertical-align:top\">${k}</td>`\n                          + `<td style=\"padding:7px 0\"><b>${esc(v)}</b></td></tr>`).join('')\n  + '</table></div></div></body></html>';\n\nconst email_text = [\n  `Sentinelas Anomaly Alert \\u2014 ${severity}`, '',\n  `Service: ${service}`, `Anomaly type: ${fault}`, `Confidence: ${pct}%`,\n  `Status: ${status}`, `Root cause: ${rcText}`, `Detected at: ${ts}`,\n  `Anomaly score: ${anomalyScore ?? 'n/a'}`, '',\n].join('\\n');\n\n// Slack renders mrkdwn, not HTML: *bold* and `code`, plus its own emoji shortcodes.\nconst slack_emoji = severity === 'CRITICAL' ? ':red_circle:'\n                  : severity === 'HIGH'    ? ':large_orange_circle:'\n                                           : ':large_yellow_circle:';\n\nconst slack_text = [\n  `${slack_emoji} *Sentinelas \\u00b7 ${severity}*`,\n  '',\n  `*Service:* \\`${service}\\``,\n  `*Type:* ${fault}`,\n  `*Confidence:* ${pct}%`,\n  `*Status:* ${status}`,\n  `*Time:* ${ts}`,\n  `*Root Cause:* ${rcText}`,\n].join('\\n');\n\nreturn [{ json: {\n  service_name: service, anomaly_type: fault,\n  confidence_score: score, confidence_pct: pct,\n  severity, severity_emoji: emoji, severity_accent: accent,\n  timestamp: ts, status,\n  root_cause_service: rcService, root_cause_fault_type: rcFault,\n  anomaly_score: anomalyScore,\n  payload_issues: issues,\n  email_to: EMAIL_TO,\n  telegram_html, slack_text, slack_channel: SLACK_CHANNEL,\n  email_subject, email_html, email_text,\n}}];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json ?? {};\nconst issues = [];\nconst get = (k, d) => (raw[k] === undefined || raw[k] === null ? d : raw[k]);\n\nconst service = String(get('service_name', 'unknown'));\nconst fault   = String(get('anomaly_type', 'unknown'));\nconst status  = String(get('status', 'ANOMALY_DETECTED'));\nlet   score   = Number(get('confidence_score', 0));\nconst tsRaw   = Number(get('timestamp', Date.now() / 1000));\nconst tsNum   = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;\n\nif (!raw.service_name) issues.push('service_name missing');\nif (!Number.isFinite(score)) { issues.push('confidence_score is not a number'); score = 0; }\nif (score < 0 || score > 1) issues.push('confidence_score outside [0,1], clamped');\nscore = Math.min(Math.max(score, 0), 1);\nif (!Number.isFinite(tsRaw)) issues.push('timestamp is not a unix epoch number - defaulted to now');\n\nconst ts  = new Date(tsNum * 1000).toISOString();\nconst pct = (score * 100).toFixed(1);\nconst esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst THRESHOLD = 0.6;\nconst above_threshold = score >= THRESHOLD;\nconst severity = score >= 0.90 ? 'CRITICAL' : score >= 0.75 ? 'HIGH' : 'MEDIUM';\nconst emoji    = severity === 'CRITICAL' ? '\\u{1F534}' : severity === 'HIGH' ? '\\u{1F7E0}' : '\\u{1F7E1}';\nconst accent   = severity === 'CRITICAL' ? '#b91c1c'  : severity === 'HIGH'  ? '#c2410c'  : '#a16207';\n\nconst rcService = get('root_cause_service', null);\nconst rcFault   = get('root_cause_fault_type', null);\nconst rcText    = rcService ? `${rcService} — ${rcFault ?? 'unspecified'}` : 'Investigating…';\nconst anomalyScore = get('anomaly_score', null);\n\nconst EMAIL_TO = 'nourhanelshieikh71@gmail.com';\nconst SLACK_CHANNEL = '#sentinelas-alerts';\n\nconst telegram_html = [\n  `${emoji} <b>Sentinelas \\u00b7 ${severity}</b>`,\n  '',\n  `<b>Service:</b> ${esc(service)}`,\n  `<b>Type:</b> ${esc(fault)}`,\n  `<b>Confidence:</b> ${pct}%`,\n  `<b>Status:</b> ${esc(status)}`,\n  `<b>Time:</b> ${esc(ts)}`,\n  `<b>Root Cause:</b> ${esc(rcText)}`,\n].join('\\n');\n\nconst email_subject = `[Sentinelas ${severity}] ${fault} in ${service} (${pct}%)`;\n\nconst rows = [\n  ['Service', service], ['Anomaly type', fault], ['Confidence', pct + '%'],\n  ['Status', status], ['Root cause', rcText], ['Detected at', ts],\n  ['Anomaly score', anomalyScore ?? 'n/a'],\n];\nconst email_html = '<!DOCTYPE html><html><body style=\"margin:0;padding:24px;background:#f6f7f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif\">'\n  + '<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb\">'\n  + `<div style=\"background:${accent};padding:16px 20px;color:#fff\">`\n  + `<div style=\"font-size:18px;font-weight:700\">${emoji} Sentinelas Anomaly Alert</div>`\n  + `<div style=\"font-size:13px;opacity:.9\">${esc(severity)} \\u00b7 ${pct}% confidence</div></div>`\n  + '<div style=\"padding:20px\"><table style=\"width:100%;border-collapse:collapse;font-size:14px;color:#111827\">'\n  + rows.map(([k, v]) => `<tr><td style=\"padding:7px 0;color:#6b7280;width:140px;vertical-align:top\">${k}</td>`\n                          + `<td style=\"padding:7px 0\"><b>${esc(v)}</b></td></tr>`).join('')\n  + '</table></div></div></body></html>';\n\nconst email_text = [\n  `Sentinelas Anomaly Alert \\u2014 ${severity}`, '',\n  `Service: ${service}`, `Anomaly type: ${fault}`, `Confidence: ${pct}%`,\n  `Status: ${status}`, `Root cause: ${rcText}`, `Detected at: ${ts}`,\n  `Anomaly score: ${anomalyScore ?? 'n/a'}`, '',\n].join('\\n');\n\n// Slack renders mrkdwn, not HTML: *bold* and `code`, plus its own emoji shortcodes.\nconst slack_emoji = severity === 'CRITICAL' ? ':red_circle:'\n                  : severity === 'HIGH'    ? ':large_orange_circle:'\n                                           : ':large_yellow_circle:';\n\nconst slack_text = [\n  `${slack_emoji} *Sentinelas \\u00b7 ${severity}*`,\n  '',\n  `*Service:* \\`${service}\\``,\n  `*Type:* ${fault}`,\n  `*Confidence:* ${pct}%`,\n  `*Status:* ${status}`,\n  `*Time:* ${ts}`,\n  `*Root Cause:* ${rcText}`,\n].join('\\n');\n\nreturn [{ json: {\n  service_name: service, anomaly_type: fault,\n  confidence_score: score, confidence_pct: pct,\n  severity, severity_emoji: emoji, severity_accent: accent,\n  timestamp: ts, status,\n  root_cause_service: rcService, root_cause_fault_type: rcFault,\n  anomaly_score: anomalyScore,\n  payload_issues: issues,\n  above_threshold, threshold: THRESHOLD,\n  email_to: EMAIL_TO,\n  telegram_html, slack_text, slack_channel: SLACK_CHANNEL,\n  email_subject, email_html, email_text,\n}}];"
       },
-      "id": "node-format-message",
+      "id": "a1779cb0-4ffb-402a-a0ea-b2ece58765e9",
       "name": "Format Alert Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        420,
-        300
+        272,
+        224
       ]
     },
     {
       "parameters": {
         "conditions": {
-          "number": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
             {
-              "value1": "={{ ($json.body ?? $json).confidence_score }}",
-              "operation": "largerEqual",
-              "value2": 0.6
+              "leftValue": "={{ $json.above_threshold }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
-          ]
+          ],
+          "combinator": "and"
         }
       },
-      "id": "node-confidence-filter",
+      "id": "10c0cb4f-5c73-4542-8079-691f3361adba",
       "name": "Confidence ≥ 0.6 ?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2.2,
       "position": [
-        640,
-        300
+        496,
+        224
       ]
     },
     {
@@ -60,69 +68,53 @@
           "parse_mode": "HTML"
         }
       },
-      "id": "node-telegram",
+      "id": "2f81a35d-79e3-42f5-ab36-3520a30224b0",
       "name": "Telegram Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
       "position": [
-        880,
-        180
+        800,
+        320
       ],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput"
+      "webhookId": "3bdc2b43-74cd-437c-9c9b-872b3adb43c3",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "UsF1XeC0rvJZ0q7h",
+          "name": "Telegram account"
+        }
+      }
     },
     {
       "parameters": {
         "sendTo": "={{ $('Format Alert Message').first().json.email_to }}",
         "subject": "={{ $('Format Alert Message').first().json.email_subject }}",
-        "emailType": "html",
         "message": "={{ $('Format Alert Message').first().json.email_html }}",
         "options": {}
       },
-      "id": "node-gmail",
+      "id": "ebd453d3-c7e8-4c02-aad7-c1a205127bdd",
       "name": "Gmail Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1120,
-        180
+        1024,
+        320
       ],
-      "onError": "continueRegularOutput"
+      "webhookId": "1b1c5ef9-ba7e-49e5-8377-1d76e8fa49d1",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zK2ByLjnjzPN90bd",
+          "name": "Gmail account"
+        }
+      }
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ received: true, routed: true, severity: $('Format Alert Message').first().json.severity, service: $('Format Alert Message').first().json.service_name, anomaly_type: $('Format Alert Message').first().json.anomaly_type, confidence_score: $('Format Alert Message').first().json.confidence_score, telegram_sent: !!$('Telegram Alert').first().json.message_id, gmail_sent: !!$('Gmail Alert').first().json.id, slack_sent: !!$('Slack Alert').first().json.ts, payload_issues: $('Format Alert Message').first().json.payload_issues, execution_id: $execution.id }) }}"
-      },
-      "id": "node-respond-ok",
-      "name": "Respond 200 OK",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        1600,
-        180
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ received: true, routed: false, reason: 'confidence_score below threshold', confidence_score: $('Format Alert Message').first().json.confidence_score, payload_issues: $('Format Alert Message').first().json.payload_issues }) }}"
-      },
-      "id": "node-respond-skip",
-      "name": "Respond 200 Suppressed",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        880,
-        440
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "post",
+        "authentication": "oAuth2",
         "select": "channel",
         "channelId": {
           "__rl": true,
@@ -130,22 +122,56 @@
           "value": "#sentinelas-alerts",
           "cachedResultName": "#sentinelas-alerts"
         },
-        "messageType": "text",
         "text": "={{ $('Format Alert Message').first().json.slack_text }}",
         "otherOptions": {}
       },
-      "id": "node-slack",
+      "id": "56ea124d-d791-43af-a766-1329ccb3ff8e",
       "name": "Slack Alert",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.7,
       "position": [
-        1360,
-        180
+        1248,
+        320
       ],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput"
+      "webhookId": "66822dd4-8311-4447-bb52-7393ede3c47b",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "hdK7lSPzoerI9Vup",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, routed: true, severity: $('Format Alert Message').first().json.severity, service: $('Format Alert Message').first().json.service_name, anomaly_type: $('Format Alert Message').first().json.anomaly_type, confidence_score: $('Format Alert Message').first().json.confidence_score, telegram_sent: !!($('Telegram Alert').first().json.result || {}).message_id, gmail_sent: !!$('Gmail Alert').first().json.id, slack_sent: !!$('Slack Alert').first().json.ts, payload_issues: $('Format Alert Message').first().json.payload_issues, execution_id: $execution.id }) }}"
+      },
+      "id": "da9eea97-5b08-4493-8f07-a61d02fccd59",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, routed: false, reason: 'confidence_score below threshold', confidence_score: $('Format Alert Message').first().json.confidence_score, threshold: $('Format Alert Message').first().json.threshold, payload_issues: $('Format Alert Message').first().json.payload_issues }) }}"
+      },
+      "id": "bd425493-10b3-4cb4-a431-66ac2962e5de",
+      "name": "Respond 200 Suppressed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        912,
+        0
+      ]
     }
   ],
   "connections": {
@@ -225,35 +251,28 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "meta": {
-    "templateCredsSetupCompleted": false
+    "availableInMCP": true,
+    "binaryMode": "separate"
   },
   "pinData": {},
-  "versionId": "2.0.0-cloud",
-  "tags": [],
   "_comment": {
-    "description": "Sentinelas anomaly alert routing: Telegram + Gmail (OAuth2).",
-    "flow": "Webhook -> Format/Enrich -> IF confidence>=0.6 -> Telegram(retry x3) -> Gmail(HTML, OAuth2) -> Slack(retry x3) -> Respond",
-    "changes_v2": [
-      "Gmail node (OAuth2) replaces the SMTP emailSend node — no App Password involved.",
-      "Format node now validates the payload and computes severity bands (>=0.90 CRITICAL, >=0.75 HIGH, else MEDIUM).",
-      "Telegram body is rendered HTML with a severity accent; the email is a full HTML card.",
-      "Telegram node retries 3x on transient failures.",
-      "Respond reports real per-channel status (message_id / gmail id) instead of fields that never existed.",
-      "Added a third sink: Slack (message/post, mrkdwn) after Gmail, so all three channels fire from one alert."
-    ],
+    "description": "Sentinelas anomaly alert routing: Telegram + Gmail + Slack.",
+    "flow": "Webhook -> Format/Enrich -> IF above_threshold -> Telegram(retry x3) -> Gmail(OAuth2) -> Slack(retry x3) -> Respond",
+    "published_workflow_id": "JAYllzvJ9FpsyrdB",
     "credentials_required": [
       "Telegram node -> telegramApi credential (BotFather token).",
-      "Gmail node    -> gmailOAuth2Api credential (Google Cloud OAuth client id + secret, then Sign in with Google).",
-      "Slack node   -> slackApi credential (Bot User OAuth Token, xoxb-...). Channel: #sentinelas-alerts."
+      "Gmail node    -> gmailOAuth2Api credential (already auto-assigned in cloud).",
+      "Slack node    -> slackOAuth2Api credential; the bot must be IN the target channel."
     ],
     "recipients": {
       "telegram_chat_id": "994169451",
       "email_to": "nourhanelshieikh71@gmail.com",
       "slack_channel": "#sentinelas-alerts"
-    }
+    },
+    "important": [
+      "The threshold decision is made INSIDE the Code node (above_threshold), not by the IF node's numeric operator. n8n 2.x evaluated '=0.95 >= 0.6' as FALSE with operator {type:number, operation:largerEqual}. The gate therefore uses {type:boolean, operation:true} on the precomputed boolean, which works.",
+      "Editing a published workflow only changes the DRAFT - you must Publish again for the webhook to run the new version.",
+      "Telegram's node returns {ok, result:{message_id}}, so delivery status must read result.message_id, not message_id at the top level."
+    ]
   }
 }
