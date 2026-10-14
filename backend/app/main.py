@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.rag.indexer import index_all_runbooks
-from app.api.health import router as health_router
+from app.api.health import router as health_router, health_check
 from app.api.alerts import router as alerts_router
 from app.api.incidents import router as incidents_router
 from app.api.rag import router as rag_router
@@ -105,6 +105,17 @@ def serve_dashboard():
     if DASHBOARD_HTML_FILE.exists():
         return DASHBOARD_HTML_FILE.read_text(encoding="utf-8")
     return "<h1>AIOps Platform Dashboard</h1><p>Dashboard HTML is initializing...</p>"
+
+@app.get("/health", tags=["Health"], include_in_schema=False)
+def health_root():
+    """Alias for /api/v1/health.
+
+    The canonical endpoint is namespaced, but probes, load-balancer checks and
+    browser tabs routinely request /health and were getting a 404. Same payload,
+    so either path reports the truth.
+    """
+    return health_check()
+
 
 @app.get("/api")
 def api_meta():
