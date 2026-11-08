@@ -4,6 +4,13 @@
 > An autonomous, chaos-grounded AIOps platform featuring multi-tenant SLA protection, real-time alert correlation, AI-guided root cause analysis (RAG & ML), and automated Ansible self-healing remediation.
 
 ---
+## Technical Demo
+
+![Sentinels Platform preview](docs/assets/preview.gif)
+
+[![Watch the full technical walkthrough](docs/assets/demo-thumbnail.png)](https://youtu.be/eAkVeYpkTnA)
+
+▶️ **Click the image above to watch the full technical walkthrough** of the platform: incident detection, correlation, and AI root-cause investigation.
 
 ## Architecture & System Overview
 
@@ -98,6 +105,47 @@ make test
 - **Interactive OpenAPI Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Live Prometheus Metrics:** [http://localhost:8000/api/v1/mesh/metrics](http://localhost:8000/api/v1/mesh/metrics)
 
+---
+## AI & Intelligence Layer
+
+Sentinels Platform goes beyond classic DevOps monitoring by adding an AI layer that detects anomalies, explains them, and recommends solutions, all running with a locally hosted LLM.
+
+### Anomaly Detection & Solution Prediction
+- **Isolation Forest**: an unsupervised ML model trained on the platform's telemetry (metrics, logs, and incident data) to detect abnormal behavior without needing labeled attack data.
+- **LLM (Llama, running locally)**: takes the detected anomaly together with its context and correlated signals, then performs root-cause investigation and predicts the most likely solutions and remediation steps. Because the model runs locally, no operational data leaves the infrastructure.
+
+### RAG (Retrieval-Augmented Generation)
+The platform includes a RAG system that grounds the LLM's answers in real, relevant knowledge instead of relying only on the model's general training:
+- Relevant documents and context (for example runbooks, past incidents, and platform documentation) are retrieved at query time.
+- The retrieved context is passed to Llama together with the question, producing more accurate and platform-specific root-cause analysis and recommendations.
+- Vector store
+- Embedding model
+
+### AI Chat Assistant
+A built-in chat assistant powered by the local **Llama** model and the RAG system, letting engineers talk to the platform in natural language, for example:
+- Ask what is happening in the system right now
+- Investigate an incident and get a root-cause explanation
+- Get recommended fixes and next steps based on platform knowledge
+
+### Real-Time Alerting System (n8n)
+Alerting is built as automated workflows in **n8n**. When an attack or a chaos event is detected, n8n routes the alert and notifies people immediately through two channels:
+
+| Channel | Purpose |
+|---------|---------|
+|  **Telegram Bot** | Instant notification with incident details |
+|  **Gmail** | Email alert sent to the whole team |
+
+Alerts are triggered by:
+-  Security attacks or suspicious activity
+-  Chaos events (failures, resource exhaustion, service disruption)
+
+### How It Works
+```text
+Telemetry → Isolation Forest (anomaly detection)
+          → RAG retrieval (relevant context) + Llama (root cause & solution prediction)
+          → n8n workflow → Telegram + Gmail alerts
+          → AI Chat Assistant (investigation & follow-up)
+```
 ---
 
 ## License & Credits
